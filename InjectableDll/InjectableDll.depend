@@ -1,5 +1,0 @@
-# depslib dependency file v1.0
-1405737641 source:f:\programming\injectabledll\main.cpp
-	"stdio.h"
-	"windows.h"
-

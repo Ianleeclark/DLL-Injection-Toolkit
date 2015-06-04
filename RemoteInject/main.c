@@ -2,12 +2,14 @@
 #include <tlhelp32.h>
 #include <stdio.h>
 #include "ProcessHandler.c"
+#include "DLLInjection.c"
+#include "Detours.c"
 
 int main() {
     HANDLE hOpenProc;
     LPVOID baseAddress;
 
-    const char* dllPath = "F:\\Programming\\RemoteInject\\bin\\Debug\\InjectableDll.dll";
+    const char* dllPath = "E:\\development\\RemoteInject\\bin\\Debug\\InjectableDll.dll";
 
     hOpenProc = GetProcessHandle("Looping.exe");
     if(hOpenProc == 0) {
@@ -25,7 +27,7 @@ int main() {
     baseInj = Inject(hOpenProc, baseAddress, dllPath);
     CallRemoteFunction(hOpenProc,dllPath, baseInj, "testFunc");
 
-
+    FunctionDetour();
 
     CleanUp(hOpenProc, baseAddress);
     return 0;

@@ -1,13 +1,10 @@
-#include <stdio.h>
-#include <TlHelp32.h>
-#include <winbase.h>
+#include "ProcessHandler.h"
 
 
 HANDLE GetProcessHandle(const char *procname) {
     HANDLE hProcessSnap;
     HANDLE hOpenProc;
     PROCESSENTRY32 pe32;
-    DWORD *processIds = NULL;
     DWORD procID;
 
     hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -16,8 +13,10 @@ HANDLE GetProcessHandle(const char *procname) {
         return 0;
     }
 
+    pe32.dwSize = sizeof(pe32);
     if(!Process32First(hProcessSnap, &pe32)) {
         printf("Couldn't retrieve first procID\n");
+        printf("%d\n", (int)pe32.th32ProcessID);
         CloseHandle(hProcessSnap);
         return 0;
     }
@@ -39,7 +38,8 @@ HANDLE GetProcessHandle(const char *procname) {
 LPVOID RemoteOpenAlloc(HANDLE hOpenProc, const char* dllPath) {
     LPVOID baseAddress = NULL;
 
-    baseAddress = (LPVOID)VirtualAllocEx(hOpenProc, NULL, strlen(dllPath) + 1, MEM_COMMIT, PAGE_READWRITE);
+    baseAddress = (LPVOID)VirtualAllocEx(hOpenProc, NULL, strlen(dllPath) + 1,
+                                         MEM_COMMIT, PAGE_READWRITE);
     if(baseAddress == NULL) {
         printf("Failed to allocate remote memory\n");
         return NULL;
@@ -47,73 +47,16 @@ LPVOID RemoteOpenAlloc(HANDLE hOpenProc, const char* dllPath) {
     return baseAddress;
 }
 
-LPDWORD Inject(HANDLE hOpenProc, LPVOID baseAddress, const char* dllPath) {
-    LPVOID loadLibA;
-    HANDLE threadID;
-    HMODULE baseInject;
-    int bytesWritten;
+int FindBaseAddress(HANDLE hProcess, LPCVOID lpAddress) {
+    MEMORY_BASIC_INFORMATION mbi;
 
-    loadLibA = (LPVOID)GetProcAddress(GetModuleHandleA("Kernel32.dll"), "LoadLibraryA");
-    if(loadLibA == NULL) {
-        printf("Failed to locate LoadLibraryA\n");
-        return FALSE;
+    if(VirtualQueryEx(hProcess, lpAddress, &mbi, sizeof(mbi)) < sizeof(mbi)) {
+        printf("Failed to Query remote process\n");
+        return -1;
     }
 
-    bytesWritten = WriteProcessMemory(hOpenProc, baseAddress, dllPath, strlen(dllPath) + 1, NULL);
-
-    if(bytesWritten == 0) {
-        return FALSE;
-    }
-
-    threadID = CreateRemoteThread(hOpenProc, NULL, 0, (LPTHREAD_START_ROUTINE)loadLibA, baseAddress, 0, NULL);
-    if(threadID == NULL) {
-        printf("Failed to CreateRemoteThread()\n");
-        return FALSE;
-    } else {
-        printf("Injected successfully into remote process address space\n");
-
-        if(threadID != 0) {
-            WaitForSingleObject(threadID, INFINITE);
-            GetExitCodeThread(threadID, (LPDWORD)&baseInject);
-            CloseHandle(threadID);
-        }
-        return TRUE;
-    }
-    return TRUE;
-}
-
-void* RemoteFunctionExport(LPCWSTR dllPath, HMODULE injBaseAddr, LPCSTR lpFunctionName) {
-    HMODULE dllLoaded;
-    DWORD offset;
-    void* remoteFunc;
-
-    dllLoaded = LoadLibrary(dllPath);
-    if(dllLoaded == NULL) {
-        return NULL;
-    } else {
-    remoteFunc = GetProcAddress(dllLoaded, lpFunctionName);
-    offset = (char*)remoteFunc - (char*)dllLoaded;
-
-    FreeLibrary(dllLoaded);
-    return (DWORD)injBaseAddr + offset;
-    }
-}
-
-BOOL CallRemoteFunction(HANDLE hOpenProc, const char* dllPath, LPVOID injBaseAddr, const char* funcName) {
-    void* lpInit;
-
-    lpInit = RemoteFunctionExport(dllPath, injBaseAddr, funcName);
-    if( lpInit == NULL ) {
-        return FALSE;
-    }
-
-    HANDLE hThread = CreateRemoteThread(hOpenProc, NULL, 0, lpInit, "test", 0, NULL);
-
-    if(hThread == NULL) {
-        return FALSE;
-    }
-
-    return TRUE;
+    printf("%X\n", (unsigned int)mbi.BaseAddress);
+    return 0;
 }
 
 void CleanUp(HANDLE hOpenProc, LPVOID allocMemory) {
