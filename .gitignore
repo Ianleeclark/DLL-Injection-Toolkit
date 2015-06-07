@@ -1,6 +1,3 @@
 */bin/*
 */obj/*
-*.cbp
-*/Looping/*
-*.depend
-*.layout
+*.exe

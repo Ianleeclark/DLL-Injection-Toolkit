@@ -4,7 +4,9 @@
 #include <stdio.h>
 #include <winbase.h>
 
-int safe_memcpy(PVOID, char*);
+int SafeMemcpy(PVOID, char*);
 int FunctionDetour();
+
+unsigned int CalculateJmpDistance(unsigned int, unsigned int);
 
 #endif // DETOURS_H

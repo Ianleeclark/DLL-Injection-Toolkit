@@ -1,6 +1,6 @@
 #include "DLLInjection.h"
 
-LPDWORD Inject(HANDLE hOpenProc, LPVOID baseAddress, const char* dllPath) {
+LPDWORD InjectDLL(HANDLE hOpenProc, LPVOID baseAddress, const char* dllPath) {
     LPVOID loadLibA;
     HANDLE threadID;
     HMODULE baseInject;
@@ -40,7 +40,7 @@ LPDWORD Inject(HANDLE hOpenProc, LPVOID baseAddress, const char* dllPath) {
     return NULL;
 }
 
-void* RemoteFunctionExport(const char* dllPath, HMODULE injBaseAddr,
+LPVOID RemoteFunctionExport(const char* dllPath, HMODULE injBaseAddr,
                            LPCSTR lpFunctionName) {
     HMODULE dllLoaded;
     DWORD offset;
@@ -50,12 +50,14 @@ void* RemoteFunctionExport(const char* dllPath, HMODULE injBaseAddr,
     if(dllLoaded == NULL) {
         return NULL;
     } else {
-    remoteFunc = GetProcAddress(dllLoaded, lpFunctionName);
-    offset = (char*)remoteFunc - (char*)dllLoaded;
+        remoteFunc = GetProcAddress(dllLoaded, lpFunctionName);
+        offset = (DWORD)remoteFunc - (DWORD)dllLoaded;
 
-    FreeLibrary(dllLoaded);
-    return (void*)((DWORD)injBaseAddr + offset);
+        FreeLibrary(dllLoaded);
+
+        return (LPVOID)(injBaseAddr + offset);
     }
+    return NULL;
 }
 
 BOOL CallRemoteFunction(HANDLE hOpenProc, const char* dllPath, 
@@ -63,11 +65,12 @@ BOOL CallRemoteFunction(HANDLE hOpenProc, const char* dllPath,
     void* lpInit;
 
     lpInit = RemoteFunctionExport(dllPath, injBaseAddr, funcName);
-    if( lpInit == NULL ) {
+    if(lpInit == NULL)
         return FALSE;
-    }
 
-    HANDLE hThread = CreateRemoteThread(hOpenProc, NULL, 0, lpInit, "test", 0, NULL);
+    HANDLE hThread = CreateRemoteThread(hOpenProc, NULL, 0,
+                                        (LPTHREAD_START_ROUTINE)lpInit,
+                                        NULL, 0, NULL);
 
     if(hThread == NULL) {
         return FALSE;
